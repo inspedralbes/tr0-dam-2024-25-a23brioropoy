@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const fs = require('fs');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid'); // Importar uuid para generar sessionId
+const path = require('path'); // Para manejar rutas de archivos
 
 const app = express();
 const port = 26984;
@@ -158,6 +159,35 @@ app.post('/finalista', (req, res) => {
             }
         });
 
+        // Guardar los resultados en el archivo JSON
+        const gameData = {
+            sessionId: sessionId,
+            correctAnswers: correctAnswers,
+            totalQuestions: userAnswers.length,
+            timestamp: new Date().toISOString() // Guardar la fecha y hora de la partida
+        };
+
+        // Ruta al archivo donde se guardarán los datos del juego
+        const gameFilePath = getGameFilePath();
+
+        // Leer el archivo JSON existente y agregar los datos de la nueva partida
+        fs.readFile(gameFilePath, 'utf-8', (err, jsonData) => {
+            let games = [];
+            if (!err && jsonData) {
+                games = JSON.parse(jsonData); // Si existe, parsear el JSON
+            }
+
+            games.push(gameData); // Agregar la nueva partida
+
+            // Guardar el archivo JSON actualizado
+            fs.writeFile(gameFilePath, JSON.stringify(games, null, 2), (err) => {
+                if (err) {
+                    return res.status(500).send('Error al guardar los resultados de la partida.');
+                }
+                console.log('Datos de la partida guardados correctamente');
+            });
+        });
+
         // Responder con el total de correctas y el número de preguntas contestadas
         res.json({
             success: correctAnswers,  // Número de respuestas correctas
@@ -165,6 +195,20 @@ app.post('/finalista', (req, res) => {
         });
     });
 });
+
+// Función para obtener el nombre del archivo según la fecha actual
+function getGameFilePath() {
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0]; // "YYYY-MM-DD"
+    const folderPath = path.join(__dirname, 'resultados'); // Ruta de la carpeta "resultados"
+    
+    // Verificar si la carpeta "resultados" existe, si no, la creamos
+    if (!fs.existsSync(folderPath)) {
+        fs.mkdirSync(folderPath); // Crear la carpeta si no existe
+    }
+    
+    return path.join(folderPath, `games_${dateStr}.json`); // Ruta del archivo para el día actual en la carpeta "resultados"
+}
 
 // Iniciar el servidor
 app.listen(port, () => {
